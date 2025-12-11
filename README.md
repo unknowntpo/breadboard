@@ -1,2 +1,4 @@
 # breadboard
-Real time stock pricing dashboard
+![Gemini_Generated_Image_o9uow0o9uow0o9uo.png](./pic.png)
+
+Realtime stock pricing dashboard with Kafka, Flink, Clickhouse.
