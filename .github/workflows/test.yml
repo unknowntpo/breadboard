@@ -1,0 +1,52 @@
+name: CI Test
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Create Kind cluster
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: breadboard-test
+
+      - name: Install Tilt
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/tilt-dev/tilt/master/scripts/install.sh | bash
+
+      - name: Run Tilt CI
+        run: |
+          tilt ci
+        timeout-minutes: 10
+
+      - name: Check service health
+        run: |
+          # Wait for services to be ready
+          kubectl wait --for=condition=ready pod -l app=clickhouse -n breadboard --timeout=60s
+          kubectl wait --for=condition=ready pod -l app=backend -n breadboard --timeout=60s
+          kubectl wait --for=condition=ready pod -l app=dashboard -n breadboard --timeout=60s
+
+      - name: Test API health endpoint
+        run: |
+          kubectl port-forward svc/backend 8000:8000 -n breadboard &
+          sleep 5
+          curl -f http://localhost:8000/health || exit 1
+
+      - name: Cleanup
+        if: always()
+        run: |
+          tilt down

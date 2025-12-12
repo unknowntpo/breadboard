@@ -4,15 +4,142 @@ Real time stock pricing dashboard.
 
 ## Architecture
 
-### Realtime websocket data
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         DATA INGESTION LAYER                                 │
+└─────────────────────────────────────────────────────────────────────────────┘
 
-yFinanceProvider -> Kafka -> Flink -> Clickhouse -> pricing event (eg. rise / drop)
-PolygonProvider 
+   ┌──────────────┐         ┌──────────────┐
+   │  yFinance    │         │  Polygon.io  │
+   │  WebSocket   │         │  WebSocket   │
+   └──────┬───────┘         └──────┬───────┘
+          │                        │
+          └────────┬───────────────┘
+                   │ Real-time pricing stream
+                   │ Peak: 2.5K msg/sec (0.5 MB/sec)
+                   │ Avg:  42 msg/sec (8.4 KB/sec)
+                   ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      REAL-TIME STREAMING PIPELINE                            │
+└─────────────────────────────────────────────────────────────────────────────┘
 
-### Historical data
+          ┌──────────────┐
+          │    Kafka     │  ◄── Message buffer (7-day retention)
+          │  (3 brokers) │      500 GB cluster
+          └──────┬───────┘
+                 │ Topics: stock-prices, crypto-prices
+                 │
+                 ▼
+          ┌──────────────┐
+          │    Flink     │  ◄── Stream processing
+          │ (2 workers)  │      - Windowing (1min, 5min aggregates)
+          └──────┬───────┘      - Anomaly detection
+                 │              - Pricing alerts (rise/drop %)
+                 │
+                 ├─────────────────┬──────────────────┐
+                 ▼                 ▼
+        ┌────────────────┐  ┌──────────────┐
+        │  ClickHouse    │  │     NATS     │  ◄── Pub/sub messaging
+        │ (3 replicas)   │  │ (JetStream)  │      Alert events
+        └────────────────┘  └──────┬───────┘
+         - Real-time table          │
+           (90-day retention)       │
+         - Minute aggregates        │
+                                    ▼
+                          ┌──────────────────┐
+                          │ Notification Svc │
+                          │  (subscribes to  │
+                          │  NATS subjects)  │
+                          └──────────────────┘
+                           Email/Webhook/Push
 
-yFinanceProvider -> Airflow jobs -> Clickhouse -> Dashboard 
-PolygonProvider 
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      BATCH PROCESSING PIPELINE                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+   ┌──────────────┐         ┌──────────────┐
+   │  yFinance    │         │  Polygon.io  │
+   │  REST API    │         │  REST API    │
+   └──────┬───────┘         └──────┬───────┘
+          │                        │
+          └────────┬───────────────┘
+                   │ Daily OHLCV fetch
+                   ▼
+          ┌──────────────┐
+          │   Airflow    │  ◄── DAG scheduler (daily/weekly jobs)
+          │  (1 worker)  │      - Backfill historical
+          └──────┬───────┘      - Daily aggregation
+                 │              - Data quality checks
+                 ▼
+          ┌──────────────┐
+          │  ClickHouse  │  ◄── Historical storage
+          │              │      - Daily OHLCV (5-year)
+          └──────────────┘      - Minute candles (compressed)
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          APPLICATION LAYER                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+          ┌──────────────────────────────────┐
+          │        FastAPI Backend           │
+          │  (Python 3.11+, async/await)     │
+          ├──────────────────────────────────┤
+          │  Endpoints:                      │
+          │  • GET  /api/v1/stocks/{symbol}  │
+          │  • GET  /api/v1/history          │
+          │  • GET  /api/v1/alerts           │
+          │  • WS   /ws/realtime             │ ◄── WebSocket for live updates
+          └────────┬─────────────────────────┘
+                   │
+                   │ Queries ClickHouse
+                   │ Publishes to WebSocket clients
+                   │
+          ┌────────▼─────────────────────────┐
+          │     ClickHouse Client Pool       │
+          │    (connection pooling)          │
+          └────────┬─────────────────────────┘
+                   │
+                   ▼
+          ┌──────────────┐
+          │  ClickHouse  │
+          └──────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           FRONTEND LAYER                                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+     ┌───────────────────────────────────────┐
+     │      Streamlit Dashboard              │
+     │   (Python-based web interface)        │
+     ├───────────────────────────────────────┤
+     │  Pages:                               │
+     │  • 📊 Real-time Monitor               │ ◄── Live charts (WebSocket)
+     │  • 📈 Historical Analysis             │ ◄── Date range queries
+     │  • 🔔 Alerts & Notifications          │
+     │  • ⚙️  Settings & Watchlist           │
+     └─────────┬─────────────────────────────┘
+               │
+               │ REST API calls
+               │ WebSocket connection
+               ▼
+        [ FastAPI Backend ]
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         DATA FLOW SUMMARY                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+1. Real-time path (latency: <100ms):
+   Provider → Kafka → Flink → ClickHouse → FastAPI → Streamlit
+
+2. Historical path (daily batch):
+   Provider → Airflow → ClickHouse → FastAPI → Streamlit
+
+3. Alert path:
+   Flink → NATS (JetStream) → Notification Service → Email/Webhook/Push
+
+4. User interaction:
+   Streamlit → FastAPI → ClickHouse → FastAPI → Streamlit
+``` 
 
 
 ## Back of Envelope Estimation
@@ -20,9 +147,15 @@ PolygonProvider
 ### Assumptions
 - DAU: 1M users
 - Symbols tracked: 2,000 (NYSE) + 500 (NASDAQ top) = 2,500 total
-- Market hours: 6.5h/day (9:30-16:00 EST), 5 days/week = ~260 trading days/year
-- Update frequency: 1 msg/symbol/second during market hours
-- Off-market: 1 msg/symbol/min (after-hours + crypto 24/7)
+- Trading hours (stocks, weekdays):
+  - Pre-market: 4:00-9:30 AM EST = 5.5h (lower volume)
+  - Regular market: 9:30-16:00 EST = 6.5h (high volume)
+  - After-hours: 16:00-20:00 EST = 4h (lower volume)
+  - Total: 16h/day, 5 days/week = ~260 trading days/year
+- Update frequency:
+  - Regular market: 1 msg/symbol/second
+  - Pre/after hours: 1 msg/symbol/10 seconds
+  - Off-market (crypto 24/7): 1 msg/symbol/min
 
 ### WebSocket Data (Real-time)
 
@@ -42,21 +175,26 @@ PolygonProvider
 ```
 Avg msg size: ~200 bytes (0.2 KB)
 
-**Market hours (peak):**
+**Regular market hours:**
 - 2,500 symbols × 1 msg/sec × 200 bytes = 500 KB/sec
 - Per day: 500 KB/s × 6.5h × 3600s = 11.7 GB/day
-- Per month: 11.7 GB × 22 days = 257 GB/month
 - Per year: 11.7 GB × 260 days = 3 TB/year
 
-**Off-hours (crypto/after-hours):**
+**Pre-market + After-hours (stocks):**
+- 2,500 symbols × 0.1 msg/sec × 200 bytes = 50 KB/sec
+- Per day: 50 KB/s × 9.5h × 3600s = 1.71 GB/day
+- Per year: 1.71 GB × 260 days = 445 GB/year
+
+**Off-market (crypto 24/7, weekends):**
 - 2,500 symbols × 1 msg/min × 200 bytes = 8.3 KB/sec
-- Per day (17.5h): 8.3 KB/s × 17.5h × 3600s = 523 MB/day
-- Per month: 523 MB × 30 days = 15.7 GB/month
+- Stocks off (8h/day × 260 days): 8.3 KB/s × 8h × 3600s × 260 = 62 GB/year
+- Weekends (48h × 52 weeks): 8.3 KB/s × 48h × 3600s × 52 = 75 GB/year
+- Subtotal: 137 GB/year
 
 **Total real-time ingestion:**
-- Daily: ~12.2 GB
-- Monthly: ~273 GB
-- Yearly: ~3.15 TB
+- Per trading day: 11.7 + 1.71 = 13.4 GB
+- Per year: 3,000 + 445 + 137 = 3.58 TB/year
+- Per month (avg): ~300 GB
 
 ### Historical Data Storage
 
@@ -75,22 +213,22 @@ Avg msg size: ~200 bytes (0.2 KB)
 ### Kafka Buffer
 
 **Retention: 7 days**
-- 12.2 GB/day × 7 = 85.4 GB
-- With 3x replication: ~256 GB
+- 13.4 GB/day × 7 = 94 GB
+- With 3x replication: ~282 GB
 - Recommended: 500 GB cluster
 
 ### ClickHouse Storage
 
 **Real-time table (90-day retention):**
-- 12.2 GB/day × 90 = 1.1 TB raw
-- Compressed (3:1): ~367 GB
+- 13.4 GB/day × 90 = 1.2 TB raw
+- Compressed (3:1): ~400 GB
 
 **Historical aggregated (5-year):**
 - Minute: 40 GB
 - Daily: 1 GB
 - Total: ~41 GB
 
-**Total ClickHouse: ~410 GB (recommend 1 TB cluster)**
+**Total ClickHouse: ~441 GB (recommend 1 TB cluster)**
 
 ### Network Bandwidth
 
@@ -147,9 +285,11 @@ Avg msg size: ~200 bytes (0.2 KB)
 - Read QPS: 10x = 5,800 QPS (shard ClickHouse)
 - Cost: ~$8K/mo
 
-**Real-time = 1 msg/10s (reduce frequency):**
-- Ingress: ÷10 = 1.22 GB/day
-- Storage: ÷10 = 41 GB ClickHouse
+**Optimize update frequency (1 msg/10s everywhere):**
+- Ingress: ÷10 = 1.34 GB/day
+- Storage: ÷10 = 44 GB ClickHouse
 - Kafka: 100 GB cluster sufficient
 - Cost savings: ~30%
+
+**Note:** Pre-market/after-hours already at 1/10 freq vs regular market
 

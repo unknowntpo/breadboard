@@ -108,10 +108,20 @@ def query_candlestick(symbol: str, start: str, end: str) -> None:
     Args:
         symbol: Stock ticker symbol (e.g., 'AAPL')
         start: Start date in YYYY-MM-DD format
-        end: End date in YYYY-MM-DD format
+        end: End date in YYYY-MM-DD format (inclusive - will add 1 day for API)
     """
-    print(f"\nFetching candlestick data for {symbol} from {start} to {end}...")
-    data: Optional[Dict[str, Any]] = get_historical_data(symbol, start=start, end=end)
+    # yfinance end date is exclusive, so add 1 day if start == end
+    from datetime import datetime, timedelta
+
+    end_date: str = end
+    if start == end:
+        end_dt: datetime = datetime.strptime(end, "%Y-%m-%d") + timedelta(days=1)
+        end_date = end_dt.strftime("%Y-%m-%d")
+        print(f"\nFetching candlestick data for {symbol} on {start}...")
+    else:
+        print(f"\nFetching candlestick data for {symbol} from {start} to {end}...")
+
+    data: Optional[Dict[str, Any]] = get_historical_data(symbol, start=start, end=end_date)
 
     if data:
         records: List[Dict[str, Any]] = data.get("records", [])
@@ -313,8 +323,9 @@ if __name__ == "__main__":
             print("  python yahoo_websocket_client.py --estimate                # Historical data size estimation")
             print("  python yahoo_websocket_client.py --candle SYMBOL START END # Candlestick data for date range")
             print("\nExamples:")
-            print("  python yahoo_websocket_client.py --candle AAPL 2024-01-01 2024-01-31")
-            print("  python yahoo_websocket_client.py --candle NVDA 2023-01-01 2023-12-31")
+            print("  python yahoo_websocket_client.py --candle AAPL 2024-12-09 2024-12-09  # Single day")
+            print("  python yahoo_websocket_client.py --candle AAPL 2024-12-01 2024-12-10  # Date range")
+            print("  python yahoo_websocket_client.py --candle NVDA 2023-01-01 2023-12-31  # Full year")
         else:
             print(f"Unknown option: {cmd}")
             print("Run with --help for usage information")
