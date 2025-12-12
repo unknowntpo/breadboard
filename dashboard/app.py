@@ -6,6 +6,7 @@ import asyncio
 import websockets
 import json
 import logging
+import altair as alt
 
 from backend.config import app_config
 
@@ -23,12 +24,30 @@ st.set_page_config(
     layout="wide"
 )
 
+# CSS styles for blinking animation
+st.markdown("""
+<style>
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+.blink-update {
+    animation: blink 0.5s ease-in-out 3;
+}
+.price-up { color: #00c853; }
+.price-down { color: #ff1744; }
+</style>
+""", unsafe_allow_html=True)
+
 # Initialize session state
 if "alerts" not in st.session_state:
     st.session_state.alerts = []
 
 if "latest_prices" not in st.session_state:
     st.session_state.latest_prices = {}
+
+if "prev_prices" not in st.session_state:
+    st.session_state.prev_prices = {}
 
 
 # Sidebar
@@ -82,6 +101,29 @@ def fetch_recent_prices(symbol: str, limit: int = 100):
         return None
 
 
+def render_price_metric(symbol: str, price: float, change_percent: float):
+    """Render custom price metric with blinking animation."""
+    # Detect if price updated
+    prev_price = st.session_state.prev_prices.get(symbol)
+    is_updating = prev_price is not None and prev_price != price
+    st.session_state.prev_prices[symbol] = price
+
+    # Color based on change
+    color_class = "price-up" if change_percent >= 0 else "price-down"
+    blink_class = "blink-update" if is_updating else ""
+    arrow = "▲" if change_percent >= 0 else "▼"
+
+    st.markdown(f"""
+    <div style="text-align: center; padding: 15px; border: 1px solid #ddd; border-radius: 8px; background: #f8f9fa;">
+        <p style="margin: 0; font-size: 14px; color: #666; font-weight: 500;">{symbol}</p>
+        <p style="margin: 8px 0 0 0; font-size: 24px; font-weight: bold; color: #000;">${price:.2f}</p>
+        <p class="{color_class} {blink_class}" style="margin: 8px 0 0 0; font-size: 14px; font-weight: 600;">
+            {arrow} {abs(change_percent):.2f}%
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+
 # Page: Real-time Monitor
 if page == "📈 Real-time Monitor":
     st.title("📈 Real-time Stock Monitor")
@@ -109,20 +151,7 @@ if page == "📈 Real-time Monitor":
                 with col:
                     change_percent = price_data.get("change_percent", 0.0)
                     price = price_data.get("price", 0.0)
-
-                    # Color based on change
-                    delta_color = "normal"
-                    if change_percent > 0:
-                        delta_color = "normal"
-                    elif change_percent < -5:
-                        delta_color = "inverse"
-
-                    st.metric(
-                        label=symbol,
-                        value=f"${price:.2f}",
-                        delta=f"{change_percent:.2f}%",
-                        delta_color=delta_color
-                    )
+                    render_price_metric(symbol, price, change_percent)
 
         st.markdown("---")
 
@@ -138,8 +167,21 @@ if page == "📈 Real-time Monitor":
                 df["timestamp"] = pd.to_datetime(df["timestamp"])
                 df = df.sort_values("timestamp")
 
-                # Line chart
-                st.line_chart(df.set_index("timestamp")["price"])
+                # Dynamic Y-axis with Altair
+                y_min = df["price"].min() * 0.995
+                y_max = df["price"].max() * 1.005
+
+                chart = alt.Chart(df).mark_line().encode(
+                    x=alt.X('timestamp:T', title='Time'),
+                    y=alt.Y('price:Q',
+                            title='Price ($)',
+                            scale=alt.Scale(domain=[y_min, y_max]))
+                ).properties(
+                    height=400,
+                    title=f"{selected_symbol} Price History"
+                ).interactive()
+
+                st.altair_chart(chart, use_container_width=True)
 
                 # Show data table
                 with st.expander("View Data Table"):
