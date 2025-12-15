@@ -4,7 +4,7 @@ import logging
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
-import yahoo_websocket_client
+from backend.infrastructure import yahoo_websocket_client
 
 from backend.api.dependencies import get_historical_service
 from backend.domain.entities import HistoricalDataCreate

@@ -5,7 +5,7 @@ import logging
 from typing import List, Callable, Optional
 
 import websockets
-import yahoo_websocket_client
+from backend.infrastructure import yahoo_websocket_client
 
 logger = logging.getLogger(__name__)
 

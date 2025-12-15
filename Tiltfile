@@ -10,7 +10,6 @@ docker_build('breadboard-app',
   live_update=[
     sync('backend/', '/app/backend/'),
     sync('dashboard/', '/app/dashboard/'),
-    sync('yahoo_websocket_client.py', '/app/yahoo_websocket_client.py'),
     run('uv sync --frozen --no-dev', trigger=['pyproject.toml', 'uv.lock']),
   ]
 )

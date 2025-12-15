@@ -16,7 +16,6 @@ ENV PATH="/root/.local/bin:/root/.cargo/bin:${PATH}"
 COPY pyproject.toml uv.lock ./
 COPY backend/ ./backend/
 COPY dashboard/ ./dashboard/
-COPY yahoo_websocket_client.py ./
 
 # Install dependencies with uv
 RUN uv sync --frozen --no-dev
