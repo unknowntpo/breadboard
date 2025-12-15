@@ -1,5 +1,83 @@
 # Initial POC - Phase 1 Implementation Plan
 
+## 🎯 Current Progress
+
+### Infrastructure & Config
+- [x] Created Tiltfile (Kubernetes orchestration with OrbStack/Kind)
+- [x] Created `.env.example` (environment template)
+- [x] Created `pyproject.toml` with dependencies + uv tool
+- [x] Removed Docker Compose (using K8s only)
+
+### Kubernetes Manifests
+- [x] `k8s/namespace.yaml` (breadboard namespace)
+- [x] `k8s/clickhouse.yaml` (ClickHouse deployment + ConfigMap for auth)
+- [x] `k8s/clickhouse-init.yml` (Schema init Job)
+- [x] `k8s/app.yml` (Unified backend+dashboard deployment)
+
+### Backend
+- [x] `backend/main.py` (FastAPI app - refactored to minimal setup)
+- [x] `backend/config.py` (Settings with python-dotenv)
+- [x] `backend/processor.py` (Stream processor with DI)
+- [x] `backend/schema.sql` (ClickHouse DDL)
+- [x] Unified `Dockerfile` (merged backend+dashboard)
+- [x] **Adopt clean architecture** - Domain, Repository, Service, API layers
+  - [x] `backend/domain/entities.py` (Pydantic models)
+  - [x] `backend/domain/interfaces.py` (Repository ABCs)
+  - [x] `backend/repository/clickhouse_client.py` (DB connection)
+  - [x] `backend/repository/stock_repository.py` (Repository implementations)
+  - [x] `backend/services/stock_service.py` (Stock business logic)
+  - [x] `backend/services/historical_service.py` (Historical logic)
+  - [x] `backend/services/alert_service.py` (Alert logic)
+  - [x] `backend/api/schemas.py` (Response DTOs)
+  - [x] `backend/api/dependencies.py` (FastAPI DI)
+  - [x] `backend/api/routes/health.py` (Health endpoint)
+  - [x] `backend/api/routes/stocks.py` (Stock endpoints)
+  - [x] `backend/api/routes/history.py` (History endpoint)
+  - [x] `backend/api/websocket/realtime.py` (WebSocket handler)
+  - [x] `backend/infrastructure/yahoo_client.py` (Yahoo WS client)
+  - [x] `backend/infrastructure/scheduler.py` (APScheduler setup)
+- [x] `backend/db.py` (Legacy - kept for reference, can be deleted)
+- [ ] Ibis stream processing (Phase 2+)
+- [ ] Advanced analytics (Phase 2+)
+
+### Dashboard
+- [x] `dashboard/app.py` (Streamlit UI)
+- [x] Enhanced with dynamic Y-axis Altair charts
+- [x] Enhanced with blinking percentage text on updates
+- [x] Real-time monitoring page
+- [x] Historical analysis page
+- [x] Alerts page
+
+### CI/CD
+- [x] `.github/workflows/test.yml` (CI with Kind)
+- [ ] CI workflow tested and passing
+
+### Tests
+- [ ] `tests/unit/test_processor.py`
+- [ ] `tests/integration/test_e2e.py`
+
+### Documentation
+- [x] `README.md` with setup instructions
+- [ ] Architecture diagram in README
+- [ ] Validate all workflows documented
+
+### System Validation
+- [ ] Test Tilt + OrbStack workflow end-to-end
+- [ ] Test GitHub Actions CI (Kind cluster)
+- [ ] Dashboard shows live prices (1-2s updates)
+- [ ] Alerts appear on >5% price drop
+- [ ] Historical chart loads for any symbol/date
+- [ ] System survives 1h continuous operation
+- [ ] ClickHouse contains data from ≥2 fetch cycles
+
+### Recent Enhancements (Completed)
+- ✅ Merged backend+dashboard into single Docker image
+- ✅ Refactored to python-dotenv for config management
+- ✅ Dynamic Y-axis scaling with Altair charts
+- ✅ Blinking percentage text animation on price updates
+
+---
+
 ## Goal
 Build minimal viable real-time stock dashboard. **Simplest tools possible → get it working → scale later.**
 

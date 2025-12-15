@@ -189,11 +189,11 @@ if page == "📈 Real-time Monitor":
 
         # Auto-refresh
         st.sidebar.markdown("---")
-        auto_refresh = st.sidebar.checkbox("Auto-refresh (every 10s)", value=True)
+        auto_refresh = st.sidebar.checkbox("Auto-refresh (every 5s)", value=True)
 
         if auto_refresh:
             import time
-            time.sleep(10)
+            time.sleep(5)
             st.rerun()
 
 

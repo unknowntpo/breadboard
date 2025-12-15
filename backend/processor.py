@@ -1,104 +1,73 @@
 import asyncio
-from typing import Dict, Any, Optional, Set
+from typing import Dict, Any, Optional
 from datetime import datetime
 import logging
 
-from backend.db import db_client
+from backend.domain.entities import StockPriceCreate
+from backend.services.stock_service import StockService
+from backend.services.alert_service import AlertService
 
 logger = logging.getLogger(__name__)
 
 
 class StreamProcessor:
-    """Process stock price messages from the queue and write to ClickHouse."""
+    """Process stock price messages with dependency injection."""
 
     def __init__(
         self,
         queue: asyncio.Queue,
+        stock_service: StockService,
+        alert_service: AlertService,
         batch_size: int = 100,
         batch_timeout: float = 1.0,
-        alert_threshold: float = -5.0,
     ):
         self.queue = queue
+        self._stock_service = stock_service
+        self._alert_service = alert_service
         self.batch_size = batch_size
         self.batch_timeout = batch_timeout
-        self.alert_threshold = alert_threshold  # Alert on price drop >= 5%
-        self.batch: list[Dict[str, Any]] = []
-        self.alert_callbacks: Set[callable] = set()
+        self.batch: list[StockPriceCreate] = []
         self.is_running = False
-
-    def register_alert_callback(self, callback: callable) -> None:
-        """Register a callback to be called when an alert is triggered."""
-        self.alert_callbacks.add(callback)
-
-    def unregister_alert_callback(self, callback: callable) -> None:
-        """Unregister an alert callback."""
-        self.alert_callbacks.discard(callback)
-
-    async def _trigger_alert(self, alert_data: Dict[str, Any]) -> None:
-        """Trigger all registered alert callbacks."""
-        for callback in self.alert_callbacks:
-            try:
-                if asyncio.iscoroutinefunction(callback):
-                    await callback(alert_data)
-                else:
-                    callback(alert_data)
-            except Exception as e:
-                logger.error(f"Error in alert callback: {e}")
 
     async def _process_message(self, message: Dict[str, Any]) -> None:
         """Process a single message and check for alerts."""
         try:
-            # Extract relevant fields
             symbol = message.get("id", "UNKNOWN")
             price = float(message.get("price", 0.0))
             volume = int(message.get("volume", 0))
             change_percent = float(message.get("change_percent", 0.0))
             timestamp_ms = message.get("time", str(int(datetime.now().timestamp() * 1000)))
-
-            # Convert timestamp from milliseconds to datetime
             timestamp = datetime.fromtimestamp(int(timestamp_ms) / 1000)
 
-            # Create record for batch insert
-            record = {
-                "timestamp": timestamp,
-                "symbol": symbol,
-                "price": price,
-                "volume": volume,
-                "change_percent": change_percent,
-            }
-
+            record = StockPriceCreate(
+                timestamp=timestamp,
+                symbol=symbol,
+                price=price,
+                volume=volume,
+                change_percent=change_percent,
+            )
             self.batch.append(record)
 
-            # Check for alert condition (price drop >= threshold)
-            if change_percent <= self.alert_threshold:
-                alert_data = {
-                    "type": "price_drop",
-                    "symbol": symbol,
-                    "price": price,
-                    "change_percent": change_percent,
-                    "timestamp": timestamp.isoformat(),
-                    "message": f"Alert: {symbol} dropped {change_percent:.2f}%",
-                }
-                logger.warning(
-                    f"ALERT: {symbol} dropped {change_percent:.2f}% to ${price:.2f}"
-                )
-                await self._trigger_alert(alert_data)
+            # Check alert condition
+            if self._alert_service.check_alert_condition(symbol, price, change_percent):
+                alert = self._alert_service.create_alert(symbol, price, change_percent, timestamp)
+                logger.warning(f"ALERT: {symbol} dropped {change_percent:.2f}% to ${price:.2f}")
+                await self._alert_service.trigger_alert(alert)
 
         except Exception as e:
             logger.error(f"Error processing message: {e}")
 
     async def _flush_batch(self) -> None:
-        """Write accumulated batch to ClickHouse."""
+        """Write accumulated batch to database via service."""
         if not self.batch:
             return
 
         try:
-            db_client.insert_stock_prices_batch(self.batch)
-            logger.debug(f"Flushed {len(self.batch)} records to ClickHouse")
+            self._stock_service.save_prices(self.batch)
+            logger.debug(f"Flushed {len(self.batch)} records")
             self.batch = []
         except Exception as e:
-            logger.error(f"Error flushing batch to ClickHouse: {e}")
-            # Keep batch for retry on next iteration
+            logger.error(f"Error flushing batch: {e}")
 
     async def run(self) -> None:
         """Main processing loop."""
