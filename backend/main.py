@@ -11,7 +11,6 @@ from backend.api.routes import health, stocks, history
 from backend.api.websocket.realtime import router as ws_router, manager
 from backend.repository.clickhouse_client import ClickHouseConnection
 from backend.infrastructure.yahoo_client import YahooWebSocketClient
-from backend.infrastructure.scheduler import setup_scheduler
 from backend.processor import StreamProcessor
 
 logging.basicConfig(
@@ -70,22 +69,11 @@ async def lifespan(app: FastAPI):
     )
     yahoo_task = asyncio.create_task(yahoo_client.run())
 
-    # Setup scheduler
-    scheduler = setup_scheduler(SYMBOLS_TO_TRACK)
-    scheduler.start()
-
-    # Run initial historical fetch
-    asyncio.create_task(
-        __import__("backend.infrastructure.scheduler", fromlist=["fetch_historical_data"])
-        .fetch_historical_data(SYMBOLS_TO_TRACK)
-    )
-
     logger.info("Application started")
     yield
 
     # Shutdown
     logger.info("Shutting down...")
-    scheduler.shutdown()
     yahoo_task.cancel()
     await processor.stop()
     processor_task.cancel()

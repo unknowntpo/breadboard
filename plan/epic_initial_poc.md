@@ -35,7 +35,14 @@
   - [x] `backend/api/routes/history.py` (History endpoint)
   - [x] `backend/api/websocket/realtime.py` (WebSocket handler)
   - [x] `backend/infrastructure/yahoo_client.py` (Yahoo WS client)
-  - [x] `backend/infrastructure/scheduler.py` (APScheduler setup)
+  - [x] `backend/infrastructure/scheduler.py` (APScheduler setup) - **REPLACED WITH AIRFLOW**
+  - [x] **Airflow migration** (Phase 1.5)
+    - [x] `backend/infrastructure/airflow_tasks.py` (Reusable task logic)
+    - [x] `airflow/dags/historical_data_dag.py` (DAG definition)
+    - [x] `scripts/run_airflow.sh` (Airflow startup script)
+    - [x] Updated `backend/main.py` (removed APScheduler)
+    - [x] Updated `pyproject.toml` (apache-airflow instead of apscheduler)
+    - [x] Tests for DAG functionality
 - [x] `backend/db.py` (Legacy - kept for reference, can be deleted)
 - [ ] Ibis stream processing (Phase 2+)
 - [ ] Advanced analytics (Phase 2+)
