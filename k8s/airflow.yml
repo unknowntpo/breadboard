@@ -52,6 +52,10 @@ spec:
               value: ""
             - name: PYTHONPATH
               value: "/opt/airflow"
+            - name: _AIRFLOW_WWW_USER_USERNAME
+              value: "airflow"
+            - name: _AIRFLOW_WWW_USER_PASSWORD
+              value: "airflow"
           resources:
             requests:
               memory: "1Gi"
