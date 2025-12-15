@@ -24,17 +24,26 @@ docker_build('breadboard-airflow',
 k8s_yaml(['k8s/clickhouse.yml', 'k8s/clickhouse-init.yml', 'k8s/app.yml'])
 
 # Deploy Airflow via Helm
-# Note: Requires 'helm repo add apache-airflow https://airflow.apache.org'
-load('ext://helm', 'helm')
-helm(
+load('ext://helm_resource', 'helm_resource', 'helm_repo')
+
+# Add Apache Airflow Helm repo
+helm_repo('apache-airflow', 'https://airflow.apache.org')
+
+# Deploy Airflow chart
+helm_resource(
   'airflow',
-  chart='apache-airflow/airflow',
+  'apache-airflow/airflow',
   namespace='breadboard',
-  values=['k8s/airflow-values.yaml'],
-  set=[
-    'images.airflow.repository=breadboard-airflow',
-    'images.airflow.tag=latest',
-  ]
+  flags=[
+    '--values=k8s/airflow-values.yaml',
+    '--set=images.airflow.repository=breadboard-airflow',
+    '--set=images.airflow.tag=latest',
+  ],
+  image_deps=['breadboard-airflow'],
+  image_keys=[('images.airflow.repository', 'images.airflow.tag')],
+  resource_deps=['clickhouse-init'],
+  port_forwards=['8080:8080'],
+  labels=['workflow'],
 )
 
 # ClickHouse resource
@@ -54,25 +63,6 @@ k8s_resource('app',
   port_forwards=['8000:8000', '8501:8501'],
   resource_deps=['clickhouse-init'],
   labels=['core']
-)
-
-# Airflow webserver resource
-k8s_resource('airflow-webserver',
-  new_name='airflow-ui',
-  port_forwards='8080:8080',
-  resource_deps=['clickhouse-init'],
-  labels=['workflow']
-)
-
-# Airflow scheduler resource
-k8s_resource('airflow-scheduler',
-  resource_deps=['clickhouse-init'],
-  labels=['workflow']
-)
-
-# Airflow PostgreSQL resource
-k8s_resource('airflow-postgresql',
-  labels=['workflow']
 )
 
 # Print access URLs
