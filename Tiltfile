@@ -1,5 +1,8 @@
 # Tiltfile for Breadboard - Real-time Stock Dashboard
 
+# Increase timeout for large Helm charts (Airflow)
+update_settings(k8s_upsert_timeout_secs=120)
+
 # Load namespace first
 k8s_yaml('k8s/namespace.yml')
 
