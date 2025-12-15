@@ -46,6 +46,8 @@ dags:
 # PostgreSQL (metadata database) - enabled as subchart
 postgresql:
   enabled: true
+  image:
+    tag: "16"  # Use latest PostgreSQL 16 (Bitnami)
   auth:
     username: airflow
     password: airflow
