@@ -209,4 +209,9 @@ __marimo__/
 # Apache Airflow
 airflow/*.db
 airflow/logs/
-airflow/pluginsr/
+airflow/plugins/
+
+# Helm
+charts/
+*.tgz
+airflow/charts/

@@ -1,0 +1,118 @@
+# Apache Airflow Helm Chart Values Override
+# Chart: apache-airflow/airflow
+# Minimal LocalExecutor setup for single DAG
+
+# Executor type (LocalExecutor = no Celery/Redis complexity)
+executor: LocalExecutor
+
+# Custom Airflow image with baked DAGs
+images:
+  airflow:
+    repository: breadboard-airflow
+    tag: latest
+    pullPolicy: IfNotPresent
+
+# Airflow environment variables
+env:
+  - name: AIRFLOW__CORE__LOAD_EXAMPLES
+    value: "False"
+  - name: AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION
+    value: "False"
+  - name: AIRFLOW__WEBSERVER__EXPOSE_CONFIG
+    value: "True"
+  - name: AIRFLOW__WEBSERVER__RBAC
+    value: "True"
+  # ClickHouse connection for DAG tasks
+  - name: CLICKHOUSE_HOST
+    value: "clickhouse"
+  - name: CLICKHOUSE_PORT
+    value: "9000"
+  - name: CLICKHOUSE_DB
+    value: "breadboard"
+  - name: CLICKHOUSE_USER
+    value: "default"
+  - name: CLICKHOUSE_PASSWORD
+    value: ""
+  - name: PYTHONPATH
+    value: "/opt/airflow"
+
+# Disable git-sync (DAGs baked into image)
+dags:
+  gitSync:
+    enabled: false
+  persistence:
+    enabled: false
+
+# PostgreSQL (metadata database) - enabled as subchart
+postgresql:
+  enabled: true
+  auth:
+    username: airflow
+    password: airflow
+    database: airflow
+  primary:
+    persistence:
+      enabled: false  # Ephemeral for local dev
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+
+# Redis (not needed for LocalExecutor)
+redis:
+  enabled: false
+
+# Webserver configuration
+webserver:
+  replicas: 1
+  service:
+    type: ClusterIP
+    port: 8080
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "200m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+  defaultUser:
+    enabled: true
+    username: admin
+    password: admin
+    email: admin@breadboard.local
+
+# Scheduler configuration
+scheduler:
+  replicas: 1
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "200m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+
+# Workers (not needed for LocalExecutor, but chart may require minimal config)
+workers:
+  replicas: 0
+
+# Flower (Celery monitoring - not needed)
+flower:
+  enabled: false
+
+# StatsD/Prometheus metrics (optional - disable for simplicity)
+statsd:
+  enabled: false
+
+# Logs persistence (ephemeral for local dev)
+logs:
+  persistence:
+    enabled: false
+
+# Service account
+serviceAccount:
+  create: true
+  name: airflow
