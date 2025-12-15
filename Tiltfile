@@ -24,29 +24,13 @@ docker_build('breadboard-airflow',
 )
 
 # Load Kubernetes manifests
-k8s_yaml(['k8s/clickhouse.yml', 'k8s/clickhouse-init.yml', 'k8s/app.yml'])
+k8s_yaml(['k8s/clickhouse.yml', 'k8s/clickhouse-init.yml', 'k8s/app.yml', 'k8s/airflow.yml'])
 
-# Deploy Airflow via Helm
-load('ext://helm_resource', 'helm_resource', 'helm_repo')
-
-# Add Apache Airflow Helm repo
-helm_repo('apache-airflow', 'https://airflow.apache.org')
-
-# Deploy Airflow chart
-helm_resource(
-  'airflow',
-  'apache-airflow/airflow',
-  namespace='breadboard',
-  flags=[
-    '--values=k8s/airflow-values.yaml',
-    '--set=images.airflow.repository=breadboard-airflow',
-    '--set=images.airflow.tag=latest',
-  ],
-  image_deps=['breadboard-airflow'],
-  image_keys=[('images.airflow.repository', 'images.airflow.tag')],
+# Deploy Airflow
+k8s_resource('airflow',
+  port_forwards='8080:8080',
   resource_deps=['clickhouse-init'],
-  port_forwards=['8080:8080'],
-  labels=['workflow'],
+  labels=['workflow']
 )
 
 # ClickHouse resource
