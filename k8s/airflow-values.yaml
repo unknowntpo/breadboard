@@ -43,11 +43,13 @@ dags:
   persistence:
     enabled: false
 
-# PostgreSQL (metadata database) - enabled as subchart
+# PostgreSQL (metadata database) - use official postgres image
 postgresql:
   enabled: true
   image:
-    tag: "16"  # Use latest PostgreSQL 16 (Bitnami)
+    registry: docker.io
+    repository: postgres
+    tag: "16-alpine"
   auth:
     username: airflow
     password: airflow
