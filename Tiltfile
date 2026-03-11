@@ -23,6 +23,12 @@ docker_build('breadboard-airflow',
   dockerfile='airflow/Dockerfile'
 )
 
+# Frontend (Vue.js + Vite) - local dev server at http://localhost:5173
+local_resource('frontend-dev',
+  serve_cmd='cd frontend && pnpm dev --port 5173',
+  labels=['frontend'],
+)
+
 # Load Kubernetes manifests
 k8s_yaml(['k8s/clickhouse.yml', 'k8s/clickhouse-init.yml', 'k8s/app.yml', 'k8s/airflow.yml'])
 
