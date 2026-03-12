@@ -7,7 +7,7 @@ vi.mock('axios', () => ({
 }))
 
 import axios from 'axios'
-import { fetchHistory } from '../../src/api/history.js'
+import { fetchHistory } from '../../src/api/history'
 
 describe('fetchHistory', () => {
   beforeEach(() => {
@@ -16,7 +16,7 @@ describe('fetchHistory', () => {
 
   it('calls GET /api/v1/history with correct params', async () => {
     const mockData = { records: [], count: 0, symbol: 'AAPL' }
-    axios.get.mockResolvedValue({ data: mockData })
+    ;(axios.get as ReturnType<typeof vi.fn>).mockResolvedValue({ data: mockData })
 
     const result = await fetchHistory('AAPL', '2024-01-01', '2024-12-31')
 
@@ -27,7 +27,7 @@ describe('fetchHistory', () => {
   })
 
   it('propagates axios errors', async () => {
-    axios.get.mockRejectedValue(new Error('Network Error'))
+    ;(axios.get as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Network Error'))
     await expect(fetchHistory('AAPL', '2024-01-01', '2024-12-31')).rejects.toThrow('Network Error')
   })
 })

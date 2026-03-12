@@ -9,7 +9,7 @@ const TSLA_RECORDS = [
   { date: '2024-01-02', symbol: 'TSLA', open: 250.0, high: 255.0, low: 248.0, close: 252.0, volume: 500000 },
 ]
 
-function mockApi(page, records, symbol = 'AAPL') {
+function mockApi(page: import('@playwright/test').Page, records: typeof AAPL_RECORDS, symbol = 'AAPL') {
   return page.route('**/api/v1/history**', route =>
     route.fulfill({
       status: 200,
@@ -52,7 +52,7 @@ test('table renders rows sorted descending by date', async ({ page }) => {
 })
 
 test('switching to TSLA reloads data with correct symbol', async ({ page }) => {
-  const requests = []
+  const requests: string[] = []
   page.on('request', req => {
     if (req.url().includes('/api/v1/history')) requests.push(req.url())
   })
@@ -78,7 +78,7 @@ test('switching to TSLA reloads data with correct symbol', async ({ page }) => {
 })
 
 test('switching range triggers new API call', async ({ page }) => {
-  const urls = []
+  const urls: string[] = []
   await page.route('**/api/v1/history**', route => {
     urls.push(route.request().url())
     route.fulfill({

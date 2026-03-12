@@ -32,25 +32,26 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
 import SymbolTabs from './components/SymbolTabs.vue'
 import RangePicker from './components/RangePicker.vue'
 import StatCards from './components/StatCards.vue'
 import PriceChart from './components/PriceChart.vue'
 import OhlcvTable from './components/OhlcvTable.vue'
-import { fetchHistory } from './api/history.js'
+import { fetchHistory } from './api/history'
+import type { HistoryRecord } from './api/history'
 
-const symbol = ref('AAPL')
-const range = ref('1M')
-const records = ref([])
-const loading = ref(false)
-const error = ref(null)
+const symbol = ref<string>('AAPL')
+const range = ref<string>('1M')
+const records = ref<HistoryRecord[]>([])
+const loading = ref<boolean>(false)
+const error = ref<string | null>(null)
 
-function dateRange(r) {
+function dateRange(r: string) {
   const end = new Date()
   const start = new Date()
-  const map = { '1W': 7, '1M': 30, '3M': 90, '1Y': 365, 'All': 3650 }
+  const map: Record<string, number> = { '1W': 7, '1M': 30, '3M': 90, '1Y': 365, 'All': 3650 }
   start.setDate(end.getDate() - (map[r] ?? 30))
   return {
     start: start.toISOString().slice(0, 10),
@@ -65,8 +66,9 @@ async function load() {
     const { start, end } = dateRange(range.value)
     const data = await fetchHistory(symbol.value, start, end)
     records.value = data.records ?? []
-  } catch (e) {
-    error.value = e?.response?.data?.detail ?? e.message
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { detail?: string } }; message?: string }
+    error.value = err?.response?.data?.detail ?? err.message ?? 'Unknown error'
     records.value = []
   } finally {
     loading.value = false

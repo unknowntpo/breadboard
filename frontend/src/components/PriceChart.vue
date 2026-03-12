@@ -4,19 +4,19 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
-import { createChart } from 'lightweight-charts'
+import { createChart, CandlestickSeries, type IChartApi, type ISeriesApi } from 'lightweight-charts'
+import type { HistoryRecord } from '@/api/history'
 
-const props = defineProps({
-  records: { type: Array, default: () => [] }
-})
+const props = defineProps<{ records: HistoryRecord[] }>()
 
-const chartContainer = ref(null)
-let chart = null
-let series = null
+const chartContainer = ref<HTMLDivElement | null>(null)
+let chart: IChartApi | null = null
+let series: ISeriesApi<'Candlestick'> | null = null
 
 function initChart() {
+  if (!chartContainer.value) return
   chart = createChart(chartContainer.value, {
     layout: {
       background: { color: '#FFFFFF' },
@@ -32,7 +32,7 @@ function initChart() {
     height: 320,
   })
 
-  series = chart.addCandlestickSeries({
+  series = chart.addSeries(CandlestickSeries, {
     upColor: '#22C55E',
     downColor: '#EF4444',
     borderUpColor: '#22C55E',
@@ -46,7 +46,7 @@ function updateData() {
   if (!series || !props.records.length) return
   const data = props.records
     .map(r => ({
-      time: r.date,
+      time: r.date as `${number}-${number}-${number}`,
       open: r.open,
       high: r.high,
       low: r.low,
@@ -54,15 +54,18 @@ function updateData() {
     }))
     .sort((a, b) => a.time.localeCompare(b.time))
   series.setData(data)
-  chart.timeScale().fitContent()
+  chart?.timeScale().fitContent()
 }
 
 onMounted(() => {
   initChart()
   updateData()
 
+  if (!chartContainer.value) return
   const ro = new ResizeObserver(() => {
-    chart.applyOptions({ width: chartContainer.value.clientWidth })
+    if (chart && chartContainer.value) {
+      chart.applyOptions({ width: chartContainer.value.clientWidth })
+    }
   })
   ro.observe(chartContainer.value)
 })

@@ -16,9 +16,9 @@
   </div>
 </template>
 
-<script setup>
-defineProps({ modelValue: String })
-defineEmits(['update:modelValue'])
+<script setup lang="ts">
+const props = defineProps<{ modelValue: string }>()
+const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
 
 const ranges = [
   { label: '1W' },

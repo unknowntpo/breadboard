@@ -31,12 +31,11 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed } from 'vue'
+import type { HistoryRecord } from '@/api/history'
 
-const props = defineProps({
-  records: { type: Array, default: () => [] }
-})
+const props = defineProps<{ records: HistoryRecord[] }>()
 
 const cols = ['Date', 'Open', 'High', 'Low', 'Close', 'Volume']
 
